@@ -17,6 +17,7 @@ import org.kohsuke.stapler.StaplerResponse;
 
 import java.awt.*;
 import java.io.IOException;
+import java.net.URLEncoder;
 
 /**
  * Root object of a AppDynamics Build Report.
@@ -56,6 +57,17 @@ public class BuildActionResultsDisplay implements ModelObject {
 
   public AppDynamicsReport getAppDynamicsReport() {
     return currentReport;
+  }
+
+  public String getEncodedString(String str) {
+    String encodedStr;
+    try {
+      encodedStr = URLEncoder.encode(str, "UTF8");
+    }
+    catch (Exception e) {
+      return "";
+    }
+    return encodedStr;
   }
 
   private void addPreviousBuildReportToExistingReport() {
