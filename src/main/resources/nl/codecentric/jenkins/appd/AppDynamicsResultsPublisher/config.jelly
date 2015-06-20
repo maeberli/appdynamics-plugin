@@ -27,6 +27,9 @@
       <f:entry field="thresholdMetric" title="${%appdynamics.threshold.metric.title}"
                description="${%appdynamics.threshold.metric.description}">
         <f:select/>
+      <f:entry title="${%appdynamics.threshold.customMetricPath.title}" description="${%appdynamics.threshold.customMetricPath.description}">
+          <f:textbox field="customMetricPath" default="${descriptor.defaultCustomMetricPath}"/>
+        </f:entry>
       </f:entry>
       <f:entry title="${%appdynamics.threshold.lower.title}">
         <f:checkbox field="lowerIsBetter" default="true"/>

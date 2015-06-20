@@ -34,6 +34,7 @@ public class AppDynamicsResultsPublisher extends Recorder {
 
   private static final String DEFAULT_USERNAME = "username@customer1";
   private static final String DEFAULT_THRESHOLD_METRIC = "Overall Application Performance|Average Response Time (ms)";
+  private static final String DEFAULT_CUSTOM_METRIC_PATH = "Overall Application Performance|Stall Count";
   private static final int DEFAULT_THRESHOLD_UNSTABLE = 80;
   private static final int DEFAULT_THRESHOLD_FAILED = 65;
   private static final int DEFAULT_MINIMUM_MEASURE_TIME_MINUTES = 10;
@@ -57,6 +58,10 @@ public class AppDynamicsResultsPublisher extends Recorder {
 
     public String getDefaultUsername() {
       return DEFAULT_USERNAME;
+    }
+
+    public String getDefaultCustomMetricPath() {
+      return DEFAULT_CUSTOM_METRIC_PATH;
     }
 
     public int getDefaultMinimumMeasureTimeInMinutes() {
@@ -159,6 +164,7 @@ public class AppDynamicsResultsPublisher extends Recorder {
   private String password = "";
   private String applicationName = "";
   private String thresholdMetric = DEFAULT_THRESHOLD_METRIC;
+  private String customMetricPath = DEFAULT_CUSTOM_METRIC_PATH;
   private Boolean lowerIsBetter = true;
   private Integer minimumMeasureTimeInMinutes = DEFAULT_MINIMUM_MEASURE_TIME_MINUTES;
   private Integer performanceFailedThreshold = DEFAULT_THRESHOLD_FAILED;
@@ -167,7 +173,8 @@ public class AppDynamicsResultsPublisher extends Recorder {
   @DataBoundConstructor
   public AppDynamicsResultsPublisher(final String appdynamicsRestUri, final String username,
                                      final String password, final String applicationName,
-                                     final String thresholdMetric, final Boolean lowerIsBetter,
+                                     final String thresholdMetric,
+                                     final String customMetricPath, final Boolean lowerIsBetter,
                                      final Integer minimumMeasureTimeInMinutes,
                                      final Integer performanceFailedThreshold,
                                      final Integer performanceUnstableThreshold) {
@@ -176,6 +183,7 @@ public class AppDynamicsResultsPublisher extends Recorder {
     setPassword(password);
     setApplicationName(applicationName);
     setThresholdMetric(thresholdMetric);
+    setCustomMetricPath(customMetricPath);
     setLowerIsBetter(lowerIsBetter);
     setMinimumMeasureTimeInMinutes(minimumMeasureTimeInMinutes);
     setPerformanceFailedThreshold(performanceFailedThreshold);
@@ -189,7 +197,7 @@ public class AppDynamicsResultsPublisher extends Recorder {
 
   @Override
   public Action getProjectAction(AbstractProject<?, ?> project) {
-    return new AppDynamicsProjectAction(project, thresholdMetric, AppDynamicsDataCollector.getAvailableMetricPaths());
+    return new AppDynamicsProjectAction(project, thresholdMetric, AppDynamicsDataCollector.getMergedMetricPaths(customMetricPath));
   }
 
   public BuildStepMonitor getRequiredMonitorService() {
@@ -214,12 +222,16 @@ public class AppDynamicsResultsPublisher extends Recorder {
 
     logger.println("Connection successful, continue to fetch measurements from AppDynamics Controller ...");
 
-    AppDynamicsDataCollector dataCollector = new AppDynamicsDataCollector(connection, build,
+    AppDynamicsDataCollector dataCollector = new AppDynamicsDataCollector(connection, build, customMetricPath,
         minimumMeasureTimeInMinutes);
     AppDynamicsReport report = dataCollector.createReportFromMeasurements();
 
     AppDynamicsBuildAction buildAction = new AppDynamicsBuildAction(build, report);
     build.addAction(buildAction);
+
+    if (thresholdMetric.equals((AppDynamicsDataCollector.CUSTOM_METRIC_PATH))){
+      thresholdMetric = customMetricPath;
+    }
 
     logger.println("Ready building AppDynamics report");
     logger.println("Verifying for improving or degrading performance, main metric: " + thresholdMetric +
@@ -367,6 +379,18 @@ public class AppDynamicsResultsPublisher extends Recorder {
       this.thresholdMetric = DEFAULT_THRESHOLD_METRIC;
     } else {
       this.thresholdMetric = thresholdMetric;
+    }
+  }
+
+  public String getCustomMetricPath() {
+    return customMetricPath;
+  }
+
+  public void setCustomMetricPath(String customMetricPath) {
+    if (customMetricPath == null || customMetricPath.isEmpty()) {
+      this.customMetricPath = DEFAULT_CUSTOM_METRIC_PATH;
+    } else {
+      this.customMetricPath = customMetricPath;
     }
   }
 

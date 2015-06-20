@@ -7,6 +7,10 @@ import nl.codecentric.jenkins.appd.rest.types.MetricData;
 import nl.codecentric.jenkins.appd.rest.RestConnection;
 import org.kohsuke.stapler.DataBoundConstructor;
 
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -17,6 +21,7 @@ import java.util.logging.Logger;
  * now this single collector should get all data.
  */
 public class AppDynamicsDataCollector {
+  public static final String CUSTOM_METRIC_PATH = "Custom metric path";
   private static final Logger LOG = Logger.getLogger(AppDynamicsDataCollector.class.getName());
   private static final String[] METRIC_PATHS = {
       "Overall Application Performance|Average Response Time (ms)",
@@ -26,23 +31,41 @@ public class AppDynamicsDataCollector {
       "Overall Application Performance|Number of Very Slow Calls",
       "Overall Application Performance|Errors per Minute",
       "Overall Application Performance|Exceptions per Minute",
-      "Overall Application Performance|Infrastructure Errors per Minute"};
+      "Overall Application Performance|Infrastructure Errors per Minute",
+      CUSTOM_METRIC_PATH};
 
   private final RestConnection restConnection;
   private final AbstractBuild<?, ?> build;
   private final int minimumDurationInMinutes;
+  private final String customMetricPath;
 
-  public AppDynamicsDataCollector(final RestConnection connection, final AbstractBuild<?, ?> build,
+  public AppDynamicsDataCollector(final RestConnection connection, final AbstractBuild<?, ?> build, final String customMetricPath,
                                   final int minimumDurationInMinutes) {
     this.restConnection = connection;
     this.build = build;
+    this.customMetricPath = customMetricPath;
     this.minimumDurationInMinutes = minimumDurationInMinutes;
   }
 
   public static String[] getAvailableMetricPaths() {
-    return METRIC_PATHS;
+      return METRIC_PATHS;
   }
 
+  public static String[] getMergedMetricPaths(String customMetricPath){
+      List<String> result = new ArrayList<String>();
+      for (String urlStr : Arrays.asList(METRIC_PATHS)) {
+          try {
+              if (urlStr.equals(CUSTOM_METRIC_PATH)) {
+                  urlStr = customMetricPath;
+              }
+              String encodedUrlStr = URLEncoder.encode(urlStr, "UTF8");
+              result.add(encodedUrlStr);
+          }
+          catch (Exception e) {
+          }
+      }
+      return result.toArray(new String[0]);
+  }
   /** Parses the specified reports into {@link AppDynamicsReport}s. */
   public AppDynamicsReport createReportFromMeasurements() {
     long buildStartTime = build.getRootBuild().getTimeInMillis();
@@ -53,6 +76,9 @@ public class AppDynamicsDataCollector {
 
     AppDynamicsReport adReport = new AppDynamicsReport(buildStartTime, durationInMinutes);
     for (String metricPath : METRIC_PATHS) {
+      if (metricPath.equals(CUSTOM_METRIC_PATH))
+          metricPath = customMetricPath;
+
       final MetricData metric = restConnection.fetchMetricData(metricPath, durationInMinutes);
       if (adReport != null && metric != null) {
         adReport.addMetrics(metric);
