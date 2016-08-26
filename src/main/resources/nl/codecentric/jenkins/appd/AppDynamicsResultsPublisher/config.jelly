@@ -1,8 +1,9 @@
+<?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core"
          xmlns:f="/lib/form">
 
   <f:entry title="${%appdynamics.rest.uri.title}" description="${%appdynamics.rest.uri.description}">
-    <f:textbox field="appdynamicsRestUri"/>
+    <f:textbox field="appdynamicsUri"/>
   </f:entry>
 
   <f:entry title="${%appdynamics.rest.username.title}" description="${%appdynamics.rest.username.description}">
@@ -19,7 +20,7 @@
 
   <f:validateButton
       title="${%appdynamics.connection.test.title}" progress="${%appdynamics.connection.test.progress}"
-      method="testAppDynamicsConnection" with="appdynamicsRestUri,username,password,applicationName"/>
+      method="testAppDynamicsConnection" with="appdynamicsUri,username,password,applicationName"/>
 
   <f:section title="Advanced AppDynamics Integration Options">
     <f:advanced>

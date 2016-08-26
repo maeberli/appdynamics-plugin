@@ -1,11 +1,15 @@
 package nl.codecentric.jenkins.appd;
 
-import hudson.model.AbstractBuild;
-import hudson.model.AbstractProject;
-import hudson.model.Action;
-import hudson.util.ChartUtil;
-import hudson.util.DataSetBuilder;
-import hudson.util.Graph;
+import java.awt.Color;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
+
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
@@ -13,187 +17,197 @@ import org.jfree.data.category.CategoryDataset;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
-import java.awt.*;
-import java.io.IOException;
-import java.util.*;
-import java.util.List;
-import java.util.logging.Logger;
-
-import static nl.codecentric.jenkins.appd.util.LocalMessages.PROJECTACTION_DISPLAYNAME;
+import hudson.model.*;
+import hudson.util.ChartUtil;
+import hudson.util.ChartUtil.NumberOnlyBuildLabel;
+import hudson.util.DataSetBuilder;
+import hudson.util.Graph;
 
 /**
- * The {@link Action} that will be executed from your project and fetch the AppDynamics performance
- * data and display after a build.
- * The Project Action will show the graph for overall performance from all builds.
+ * The {@link Action} that will be executed from your project and fetch the
+ * AppDynamics performance data and display after a build. The Project Action
+ * will show the graph for overall performance from all builds.
  */
 public class AppDynamicsProjectAction implements Action {
 
-  /**
-   * Logger.
-   */
-  private static final Logger LOGGER = Logger.getLogger(AppDynamicsProjectAction.class.getName());
-  private static final long serialVersionUID = 1L;
+	private static final String PROJECTACTION_DISPLAYNAME = "AppDynamics Project actions.";
 
-  private static final String PLUGIN_NAME = "appdynamics-dashboard";
+	/**
+	 * Logger.
+	 */
+	private static final long serialVersionUID = 1L;
 
-  private final AbstractProject<?, ?> project;
-  private final String mainMetricKey;
-  private final String[] allMetricKeys;
+	private static final String PLUGIN_NAME = "appdynamics-dashboard";
 
-  public AppDynamicsProjectAction(final AbstractProject project, final String mainMetricKey,
-                                  final String[] allMetricKeys) {
-    this.project = project;
-    this.mainMetricKey = mainMetricKey;
-    this.allMetricKeys = allMetricKeys;
-  }
+	private final String mainMetricKey;
+	private String[] allMetricKeys;
+	AbstractProject<?, ?> project;
 
-  public String getDisplayName() {
-    return PROJECTACTION_DISPLAYNAME.toString();
-  }
+	public AppDynamicsProjectAction(final AbstractProject<?, ?> project, final String mainMetricKey,
+			final String[] allMetricKeys) {
+		this.project = project;
+		this.mainMetricKey = mainMetricKey;
+		this.allMetricKeys = Arrays.copyOf(allMetricKeys, allMetricKeys.length);
+	}
 
-  public String getUrlName() {
-    return PLUGIN_NAME;
-  }
+	public String getDisplayName() {
+		return PROJECTACTION_DISPLAYNAME.toString();
+	}
 
-  public String getIconFileName() {
-    return "graph.gif";
-  }
+	public String getUrlName() {
+		return PLUGIN_NAME;
+	}
 
-  /**
-   * Method necessary to get the side-panel included in the Jelly file
-   * @return this {@link AbstractProject}
-   */
-  public AbstractProject<?, ?> getProject() {
-    return this.project;
-  }
+	public String getIconFileName() {
+		return "graph.gif";
+	}
 
-  public boolean isTrendVisibleOnProjectDashboard() {
-    return getExistingReportsList().size() >= 1;
-  }
+	/**
+	 * Method necessary to get the side-panel included in the Jelly file
+	 * 
+	 * @return this {@link AbstractProject}
+	 */
+	public AbstractProject<?, ?> getProject() {
+		return this.project;
+	}
 
-  public List<String> getAvailableMetricKeys() {
-    return Arrays.asList(allMetricKeys);
-  }
+	public boolean isTrendVisibleOnProjectDashboard() {
+		return getExistingReportsList().size() >= 1;
+	}
 
-  /**
-   * Graph of metric points over time.
-   */
-  public void doSummarizerGraphMainMetric(final StaplerRequest request,
-                                          final StaplerResponse response) throws IOException {
-    final Map<ChartUtil.NumberOnlyBuildLabel, Double> averagesFromReports =
-        getAveragesFromAllReports(getExistingReportsList(), mainMetricKey);
+	public List<String> getAvailableMetricKeys() {
+		return Arrays.asList(allMetricKeys);
+	}
 
-    final Graph graph = new GraphImpl(mainMetricKey + " Overall Graph") {
+	/**
+	 * Graph of metric points over time.
+	 */
+	public void doSummarizerGraphMainMetric(final StaplerRequest request, final StaplerResponse response)
+			throws IOException {
+		final Map<ChartUtil.NumberOnlyBuildLabel, Double> averagesFromReports = getAveragesFromAllReports(
+				getExistingReportsList(), mainMetricKey);
 
-      protected DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet() {
-        DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> dataSetBuilder =
-            new DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel>();
+		final Graph graph = new GraphImpl(mainMetricKey + " Overall Graph") {
 
-        for (ChartUtil.NumberOnlyBuildLabel label : averagesFromReports.keySet()) {
-          dataSetBuilder.add(averagesFromReports.get(label), mainMetricKey, label);
-        }
+			protected DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet() {
+				DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> dataSetBuilder = new DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel>();
 
-        return dataSetBuilder;
-      }
-    };
+				Iterator<Entry<NumberOnlyBuildLabel, Double>> it = averagesFromReports.entrySet().iterator();
+				while (it.hasNext()) {
+					Entry<NumberOnlyBuildLabel, Double> entry = it.next();
+					ChartUtil.NumberOnlyBuildLabel label = (ChartUtil.NumberOnlyBuildLabel) entry.getKey();
+					Double value = (Double) entry.getValue();
+					dataSetBuilder.add(value, mainMetricKey, label);
+				}
 
-    graph.doPng(request, response);
-  }
+				return dataSetBuilder;
+			}
+		};
 
-  /**
-   * Graph of metric points over time, metric to plot set as request parameter.
-   */
-  public void doSummarizerGraphForMetric(final StaplerRequest request,
-                                          final StaplerResponse response) throws IOException {
-    final String metricKey = request.getParameter("metricDataKey");
-    final Map<ChartUtil.NumberOnlyBuildLabel, Double> averagesFromReports =
-        getAveragesFromAllReports(getExistingReportsList(), metricKey);
+		graph.doPng(request, response);
+	}
 
-    final Graph graph = new GraphImpl(metricKey + " Overall Graph") {
+	/**
+	 * Graph of metric points over time, metric to plot set as request
+	 * parameter.
+	 */
+	public void doSummarizerGraphForMetric(final StaplerRequest request, final StaplerResponse response)
+			throws IOException {
+		final String metricKey = request.getParameter("metricDataKey");
+		final Map<ChartUtil.NumberOnlyBuildLabel, Double> averagesFromReports = getAveragesFromAllReports(
+				getExistingReportsList(), metricKey);
 
-      protected DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet() {
-        DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> dataSetBuilder =
-            new DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel>();
+		final Graph graph = new GraphImpl(metricKey + " Overall Graph") {
 
-        for (ChartUtil.NumberOnlyBuildLabel label : averagesFromReports.keySet()) {
-          dataSetBuilder.add(averagesFromReports.get(label), metricKey, label);
-        }
+			protected DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet() {
+				DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> dataSetBuilder = new DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel>();
 
-        return dataSetBuilder;
-      }
-    };
+				Iterator<Entry<NumberOnlyBuildLabel, Double>> it = averagesFromReports.entrySet().iterator();
+				while (it.hasNext()) {
+					Entry<NumberOnlyBuildLabel, Double> entry = it.next();
+					ChartUtil.NumberOnlyBuildLabel label = (ChartUtil.NumberOnlyBuildLabel) entry.getKey();
+					Double value = (Double) entry.getValue();
+					dataSetBuilder.add(value, metricKey, label);
+				}
 
-    graph.doPng(request, response);
-  }
+				return dataSetBuilder;
+			}
+		};
 
-  private abstract class GraphImpl extends Graph {
-    private final String graphTitle;
+		graph.doPng(request, response);
+	}
 
-    protected GraphImpl(final String metricKey) {
-      super(-1, 400, 300); // cannot use timestamp, since ranges may change
-      this.graphTitle = stripTitle(metricKey);
-    }
+	private abstract class GraphImpl extends Graph {
+		private final String graphTitle;
 
-    private String stripTitle(final String metricKey) {
-      return metricKey.substring(metricKey.lastIndexOf("|") + 1);
-    }
+		protected GraphImpl(final String metricKey) {
+			super(-1, 400, 300); // cannot use timestamp, since ranges may
+									// change
+			this.graphTitle = stripTitle(metricKey);
+		}
 
-    protected abstract DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet();
+		private String stripTitle(final String metricKey) {
+			return metricKey.substring(metricKey.lastIndexOf("|") + 1);
+		}
 
-    protected JFreeChart createGraph() {
-      final CategoryDataset dataset = createDataSet().build();
+		protected abstract DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> createDataSet();
 
-      final JFreeChart chart = ChartFactory.createLineChart(graphTitle, // title
-          "Build Number #", // category axis label
-          null, // value axis label
-          dataset, // data
-          PlotOrientation.VERTICAL, // orientation
-          false, // include legend
-          true, // tooltips
-          false // urls
-      );
+		protected JFreeChart createGraph() {
+			final CategoryDataset dataset = createDataSet().build();
 
-      chart.setBackgroundPaint(Color.white);
+			final JFreeChart chart = ChartFactory.createLineChart(graphTitle, // title
+					"Build Number #", // category axis label
+					null, // value axis label
+					dataset, // data
+					PlotOrientation.VERTICAL, // orientation
+					false, // include legend
+					true, // tooltips
+					false // urls
+			);
 
-      return chart;
-    }
-  }
+			chart.setBackgroundPaint(Color.white);
 
-  private List<AppDynamicsReport> getExistingReportsList() {
-    final List<AppDynamicsReport> adReportList = new ArrayList<AppDynamicsReport>();
+			return chart;
+		}
+	}
 
-    if (null == this.project) {
-      return adReportList;
-    }
+	private List<AppDynamicsReport> getExistingReportsList() {
+		final List<AppDynamicsReport> adReportList = new ArrayList<AppDynamicsReport>();
 
-    final List<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
-    for (AbstractBuild<?, ?> currentBuild : builds) {
-      final AppDynamicsBuildAction performanceBuildAction = currentBuild.getAction(AppDynamicsBuildAction.class);
-      if (performanceBuildAction == null) {
-        continue;
-      }
-      final AppDynamicsReport report = performanceBuildAction.getBuildActionResultsDisplay().getAppDynamicsReport();
-      if (report == null) {
-        continue;
-      }
+		if (null == this.project) {
+			return adReportList;
+		}
 
-      adReportList.add(report);
-    }
+		final List<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
+		for (AbstractBuild<?, ?> currentBuild : builds) {
+			final AppDynamicsBuildAction performanceBuildAction = currentBuild.getAction(AppDynamicsBuildAction.class);
+			if (performanceBuildAction == null) {
+				continue;
+			}
+			final AppDynamicsReport report = performanceBuildAction.getBuildActionResultsDisplay()
+					.getAppDynamicsReport();
+			if (report == null) {
+				continue;
+			}
 
-    return adReportList;
-  }
+			adReportList.add(report);
+		}
 
-  private Map<ChartUtil.NumberOnlyBuildLabel, Double> getAveragesFromAllReports(
-      final List<AppDynamicsReport> reports, final String metricKey) {
-    Map<ChartUtil.NumberOnlyBuildLabel, Double> averages = new TreeMap<ChartUtil.NumberOnlyBuildLabel, Double>();
-    for (AppDynamicsReport report : reports) {
-      double value = report.getAverageForMetric(metricKey);
-      if (value >= 0) {
-        ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(report.getBuild());
-        averages.put(label, value);
-      }
-    }
+		return adReportList;
+	}
 
-    return averages;
-  }
+	private Map<ChartUtil.NumberOnlyBuildLabel, Double> getAveragesFromAllReports(final List<AppDynamicsReport> reports,
+			final String metricKey) {
+		Map<ChartUtil.NumberOnlyBuildLabel, Double> averages = new TreeMap<ChartUtil.NumberOnlyBuildLabel, Double>();
+		for (AppDynamicsReport report : reports) {
+			double value = report.getAverageForMetric(metricKey);
+			if (value >= 0) {
+				ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(
+						(Run<?, ?>) report.getBuild());
+				averages.put(label, value);
+			}
+		}
+
+		return averages;
+	}
 }

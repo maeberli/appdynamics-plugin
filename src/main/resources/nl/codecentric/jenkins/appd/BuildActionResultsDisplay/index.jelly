@@ -1,3 +1,4 @@
+<?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
          xmlns:l="/lib/layout">
   <l:layout title="overview-layout" xmlns:jm="/nl/codecentric/jenkins/appd/tags"
@@ -6,7 +7,13 @@
     <l:main-panel>
       <j:set var="report" value="${it.getAppDynamicsReport()}"/>
       <h2>${report.getName()}</h2>
-
+      
+      <h3>${%appdynamics.report.controller.subtitle}</h3>
+      <ul>
+      	<li><a href="${report.getDashboardUrl()}" target="_blank">${%appdynamics.report.controller.dashboard.text}</a></li>
+      	<li><a href="${report.getCompareReleaseUrl()}" target="_blank">${%appdynamics.report.controller.compare.text}</a></li>
+      </ul>
+      
       <j:forEach var="metricData" items="${report.metricsList}">
         <h3>Metric Path: ${metricData.metricPath} with interval: ${metricData.frequency}</h3>
         <table width="100%">
